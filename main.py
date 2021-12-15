@@ -12,10 +12,23 @@ def main():
     print('Attempting to parse file at: ' + fileName)
     parse_file(fileName)
 
-def scaleTo8BitColor(colorByte, bitsPerColor):
+def scaleTo8BitColor(colorByte, bitsPerColor, colorValue='Unknown'):
     fullColor = int((int(colorByte) * 255) / (2**bitsPerColor-1))
-    # print('Converting byte ' + str(colorByte) + ' with int value of ' + str(int(colorByte)) + ' to fullColor int of ' + str(fullColor) + ' having byte ' + str(fullColor.to_bytes(1, 'big')))
+    print('Converting ' + colorValue + ' byte ' + str(colorByte) + ' with int value of ' + str(int(colorByte)) + ' to fullColor int of ' + str(fullColor) + ' having byte ' + str(fullColor.to_bytes(1, 'big')))
     return fullColor.to_bytes(1, 'little')[0]
+
+LITTLE_ENDIAN_BYTES = True
+LITTLE_ENDIAN_BITS = True
+APPLY_BITWISE_NOT = False
+
+def reverseBits(byte):
+    bits = bin(byte)
+    # print(bits)
+    reverse = bits[-1 : 1 : -1]
+    reverse = reverse + (8 - len(reverse)) * '0'
+    # print(reverse)
+    # print(int(reverse, 2))
+    return int(reverse, 2)
 
 def getSectionOfFile(file, position, size, modeIdx):
     width = size[0]
@@ -29,8 +42,15 @@ def getSectionOfFile(file, position, size, modeIdx):
         newBytes = [0x00] * (width*height*3)
         for i in range(0, len(imageBytes), 2):
             # RRRRRGGG GGGBBBBB
-            byte1 = imageBytes[i]
-            byte2 = imageBytes[i+1]
+            if LITTLE_ENDIAN_BYTES:
+                byte1 = imageBytes[i]
+                byte2 = imageBytes[i + 1]
+            else:
+                byte1 = imageBytes[i + 1]
+                byte2 = imageBytes[i]
+            if not LITTLE_ENDIAN_BITS:
+                byte1 = reverseBits(byte1)
+                byte2 = reverseBits(byte2)
             #print("Byte1: " + str(byte1) + " " + format(byte1, 'b'))
             #print("Byte2: " + str(byte2) + " " + format(byte2, 'b'))
             rBits = (byte1 & 0b11111000) >> 3
@@ -40,17 +60,78 @@ def getSectionOfFile(file, position, size, modeIdx):
             #print('Green bits ' + str(gBits))
             #print('Blue bits ' + str(bBits))
             newBytesIndex = int(3*i/2)
-            newBytes[newBytesIndex] = 255 - scaleTo8BitColor(rBits, 5)
-            newBytes[newBytesIndex+1] = 255 - scaleTo8BitColor(gBits, 6)
-            newBytes[newBytesIndex+2] = 255 - scaleTo8BitColor(bBits, 5)
+            newBytes[newBytesIndex] = scaleTo8BitColor(rBits, 5)
+            newBytes[newBytesIndex+1] = scaleTo8BitColor(gBits, 6)
+            newBytes[newBytesIndex+2] = scaleTo8BitColor(bBits, 5)
+        imageBytes = bytearray(newBytes)
+        mode = 'RGB'
+    elif mode == 'HCReverseBrightness':
+        newBytes = [0x00] * (width * height * 3)
+        for i in range(0, len(imageBytes), 2):
+            # RRRRRGGG GGGBBBBB
+            if LITTLE_ENDIAN_BYTES:
+                byte1 = ~imageBytes[i]
+                byte2 = ~imageBytes[i + 1]
+            else:
+                byte1 = ~imageBytes[i + 1]
+                byte2 = ~imageBytes[i]
+            if not LITTLE_ENDIAN_BITS:
+                byte1 = reverseBits(byte1)
+                byte2 = reverseBits(byte2)
+            # print("Byte1: " + str(byte1) + " " + format(byte1, 'b'))
+            # print("Byte2: " + str(byte2) + " " + format(byte2, 'b'))
+            rBits = (byte1 & 0b11111000) >> 3
+            gBits = ((byte1 & 0b00000111) << 3) | ((byte2 & 0b11100000) >> 5)
+            bBits = byte2 & 0b00011111
+            # print('Red bits ' + str(rBits))
+            # print('Green bits ' + str(gBits))
+            # print('Blue bits ' + str(bBits))
+            newBytesIndex = int(3 * i / 2)
+            newBytes[newBytesIndex] = scaleTo8BitColor(rBits, 5, 'red')
+            newBytes[newBytesIndex + 1] = scaleTo8BitColor(gBits, 6, 'green')
+            newBytes[newBytesIndex + 2] = scaleTo8BitColor(bBits, 5, 'blue')
+        imageBytes = bytearray(newBytes)
+        mode = 'RGB'
+    elif mode == 'HCB5G6R5':
+        newBytes = [0x00] * (width * height * 3)
+        for i in range(0, len(imageBytes), 2):
+            # BBBBBGGG GGGRRRRR
+            if LITTLE_ENDIAN_BYTES:
+                byte1 = imageBytes[i]
+                byte2 = imageBytes[i + 1]
+            else:
+                byte1 = imageBytes[i + 1]
+                byte2 = imageBytes[i]
+            if not LITTLE_ENDIAN_BITS:
+                byte1 = reverseBits(byte1)
+                byte2 = reverseBits(byte2)
+            # print("Byte1: " + str(byte1) + " " + format(byte1, 'b'))
+            # print("Byte2: " + str(byte2) + " " + format(byte2, 'b'))
+            bBits = (byte1 & 0b11111000) >> 3
+            gBits = ((byte1 & 0b00000111) << 3) | ((byte2 & 0b11100000) >> 5)
+            rBits = byte2 & 0b00011111
+            # print('Red bits ' + str(rBits))
+            # print('Green bits ' + str(gBits))
+            # print('Blue bits ' + str(bBits))
+            newBytesIndex = int(3 * i / 2)
+            newBytes[newBytesIndex] = scaleTo8BitColor(rBits, 5)
+            newBytes[newBytesIndex + 1] = scaleTo8BitColor(gBits, 6)
+            newBytes[newBytesIndex + 2] = scaleTo8BitColor(bBits, 5)
         imageBytes = bytearray(newBytes)
         mode = 'RGB'
     elif mode == 'HCR5G5B5':
         newBytes = [0x00] * (width * height * 3)
         for i in range(0, len(imageBytes), 2):
             # RRRRRGGG GGBBBBBX
-            byte1 = imageBytes[i]
-            byte2 = imageBytes[i + 1]
+            if LITTLE_ENDIAN_BYTES:
+                byte1 = imageBytes[i]
+                byte2 = imageBytes[i + 1]
+            else:
+                byte1 = imageBytes[i + 1]
+                byte2 = imageBytes[i]
+            if not LITTLE_ENDIAN_BITS:
+                byte1 = reverseBits(byte1)
+                byte2 = reverseBits(byte2)
             #print("Byte1: " + str(byte1) + " " + format(byte1, 'b'))
             #print("Byte2: " + str(byte2) + " " + format(byte2, 'b'))
             rBits = (byte1 & 0b01111100) >> 3
@@ -69,8 +150,15 @@ def getSectionOfFile(file, position, size, modeIdx):
         newBytes = [0x00] * (width * height * 3)
         for i in range(0, len(imageBytes), 2):
             # RRRRGGGG BBBBXXXX
-            byte1 = imageBytes[i]
-            byte2 = imageBytes[i + 1]
+            if LITTLE_ENDIAN_BYTES:
+                byte1 = imageBytes[i]
+                byte2 = imageBytes[i + 1]
+            else:
+                byte1 = imageBytes[i + 1]
+                byte2 = imageBytes[i]
+            if not LITTLE_ENDIAN_BITS:
+                byte1 = reverseBits(byte1)
+                byte2 = reverseBits(byte2)
             #print("Byte1: " + str(byte1) + " " + format(byte1, 'b'))
             #print("Byte2: " + str(byte2) + " " + format(byte2, 'b'))
             rBits = (byte1 & 0b11110000) >> 4
@@ -91,11 +179,11 @@ def getSectionOfFile(file, position, size, modeIdx):
     print("Creating image from " + str(len(imageBytes)) + " byte array for " + mode + " " + str(width) + "x" + str(height))
     return pygame.image.frombuffer(imageBytes, (width, height), mode)
 
-SCROLL_KEYS = [ pygame.K_UP, pygame.K_DOWN, pygame.K_LEFT, pygame.K_RIGHT, pygame.K_PAGEUP, pygame.K_PAGEDOWN, pygame.K_w, pygame.K_h, pygame.K_m, pygame.K_s ]
+SCROLL_KEYS = [ pygame.K_UP, pygame.K_DOWN, pygame.K_LEFT, pygame.K_RIGHT, pygame.K_PAGEUP, pygame.K_PAGEDOWN, pygame.K_w, pygame.K_h, pygame.K_m, pygame.K_s, pygame.K_b ]
 
 class Mode:
-    modeTypes = ['P', 'RGB', 'BGR', 'RGBX', 'RGBA', 'ARGB', 'HC', 'HCR5G5B5', 'HCR4G4B4']
-    modeBitsPerPixel = {'P': 1, 'RGB': 3, 'BGR': 3, 'RGBX': 4, 'RGBA': 4, 'ARGB': 4, 'HC': 2, 'HCR5G5B5': 2, 'HCR4G4B4': 2}
+    modeTypes = ['P', 'RGB', 'BGR', 'RGBX', 'RGBA', 'ARGB', 'HC', 'HCReverseBrightness', 'HCB5G6R5', 'HCR5G5B5', 'HCR4G4B4']
+    modeBitsPerPixel = {'P': 1, 'RGB': 3, 'BGR': 3, 'RGBX': 4, 'RGBA': 4, 'ARGB': 4, 'HC': 2, 'HCReverseBrightness': 2, 'HCB5G6R5': 2, 'HCR5G5B5': 2, 'HCR4G4B4': 2}
 
 def parse_file(fileName):
     pygame.init()
@@ -124,6 +212,15 @@ def parse_file(fileName):
                     modeIdx = (modeIdx + increment) % len(Mode.modeTypes)
                     print('Mode Index: ' + str(modeIdx))
                     print('Changed mode to ' + Mode.modeTypes[modeIdx] + ' with ' + str(Mode.modeBitsPerPixel[Mode.modeTypes[modeIdx]]) + 'bpp')
+                if event.key == pygame.K_b:
+                    if mods & pygame.KMOD_SHIFT or mods & pygame.KMOD_LSHIFT:
+                        global LITTLE_ENDIAN_BITS
+                        LITTLE_ENDIAN_BITS = not LITTLE_ENDIAN_BITS
+                        print('Little Endian on bits: ' + str(LITTLE_ENDIAN_BITS))
+                    else:
+                        global LITTLE_ENDIAN_BYTES
+                        LITTLE_ENDIAN_BYTES = not LITTLE_ENDIAN_BYTES
+                        print('Little Endian on bytes: ' + str(LITTLE_ENDIAN_BYTES))
                 if event.key == pygame.K_PAGEDOWN:
                     location = location + (Mode.modeBitsPerPixel[Mode.modeTypes[modeIdx]] * width * height)
                 if event.key == pygame.K_RIGHT:
