@@ -64,91 +64,100 @@ class PixelFormat:
 class ImageScanner:
     def __init__(self, file):
         self.file = file
+        self.location = 0
+        self.mode_idx = 4
+        self.width, self.height = 80, 160
+        self.scale = 1
+        pygame.init()
+        self.screen = pygame.display.set_mode((self.width * self.scale, self.height * self.scale))
+        self.img = self.getSectionOfFile(self.location, (self.width, self.height))
+        self.img = pygame.transform.scale(self.img, (self.width * self.scale, self.height * self.scale))
+        self.screen.fill((0, 0, 0))
+        self.screen.blit(self.img, self.img.get_rect())
+        pygame.display.flip()
+
+    def __del__(self):
+        pygame.quit()
 
     SCROLL_KEYS = [pygame.K_UP, pygame.K_DOWN, pygame.K_LEFT, pygame.K_RIGHT, pygame.K_PAGEUP, pygame.K_PAGEDOWN,
                        pygame.K_w, pygame.K_h, pygame.K_m, pygame.K_s, pygame.K_b, pygame.K_BACKQUOTE]
 
-    def run_with_file(self):
-        pygame.init()
-        width, height = 80, 160
-        scale = 1
-        screen = pygame.display.set_mode((width * scale, height * scale))
-        location = 0
-        modeIdx = 4
-        img = self.getSectionOfFile(location, (width, height), modeIdx)
-        img = pygame.transform.scale(img, (width * scale, height * scale))
-        parsing = True
-        while parsing and self.file.readable():
-            pygame.event.pump()
-            event = pygame.event.wait()
-            if event.type == pygame.KEYDOWN and event.key in ImageScanner.SCROLL_KEYS:
-                increment = 1
-                mods = pygame.key.get_mods()
-                if mods & pygame.KMOD_LCTRL or mods & pygame.KMOD_CTRL:
-                    increment = 10
-                    print("CRTL Down")
-                if mods & pygame.KMOD_LSHIFT or mods & pygame.KMOD_SHIFT:
-                    increment = increment * -1
-                    print("SHIFT Down")
-                if event.key == pygame.K_m:
-                    modeIdx = (modeIdx + increment) % len(PixelFormat.formatTypes)
-                    print('Mode Index: ' + str(modeIdx))
-                    print('Changed mode to ' + PixelFormat.formatTypes[modeIdx] + ' with ' + str(
-                        PixelFormat.modeBitsPerPixel[PixelFormat.formatTypes[modeIdx]]) + 'bpp')
-                if event.key == pygame.K_b:
-                    if mods & pygame.KMOD_SHIFT or mods & pygame.KMOD_LSHIFT:
-                        config.LITTLE_ENDIAN_BITS = not config.LITTLE_ENDIAN_BITS
-                        print('Little Endian on bits: ' + str(config.LITTLE_ENDIAN_BITS))
-                    else:
-                        config.LITTLE_ENDIAN_BYTES = not config.LITTLE_ENDIAN_BYTES
-                        print('Little Endian on bytes: ' + str(config.LITTLE_ENDIAN_BYTES))
-                if event.key == pygame.K_BACKQUOTE:
-                    config.APPLY_BITWISE_NOT = not config.APPLY_BITWISE_NOT
-                    print('Bitwise Not Applied: ' + str(config.APPLY_BITWISE_NOT))
-                if event.key == pygame.K_PAGEDOWN:
-                    location = location + (PixelFormat.modeBitsPerPixel[PixelFormat.formatTypes[modeIdx]] * width * height * increment)
-                if event.key == pygame.K_RIGHT:
-                    location = location + increment
-                if event.key == pygame.K_DOWN:
-                    location = location + (PixelFormat.modeBitsPerPixel[PixelFormat.formatTypes[modeIdx]] * width * increment)
-                if event.key == pygame.K_PAGEUP:
-                    location = location - (PixelFormat.modeBitsPerPixel[PixelFormat.formatTypes[modeIdx]] * width * height * increment)
-                if event.key == pygame.K_LEFT:
-                    location = location - increment
-                if event.key == pygame.K_UP:
-                    location = location - (PixelFormat.modeBitsPerPixel[PixelFormat.formatTypes[modeIdx]] * width * increment)
-                if event.key == pygame.K_w:
-                    width = width + increment
-                    screen = pygame.display.set_mode((width * scale, height * scale))
-                    print("New Size: Width: " + str(width) + ", Height:" + str(height))
-                if event.key == pygame.K_s:
-                    scale = scale + increment
-                    if scale < 1:
-                        scale = 1
-                    screen = pygame.display.set_mode((width * scale, height * scale))
-                if event.key == pygame.K_h:
-                    height = height + increment
-                    screen = pygame.display.set_mode((width * scale, height * scale))
-                    print("New Size: Width: " + str(width) + ", Height:" + str(height))
-                if location < 0:
-                    location = 0
-                lastImg = img
-                img = self.getSectionOfFile(location, (width, height), modeIdx)
-                if img is not None:
-                    img = pygame.transform.scale(img, (width * scale, height * scale))
-                else:
-                    img = lastImg
-            if event.type == pygame.QUIT or (event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE):
-                parsing = False
-            screen.fill((0, 0, 0))
-            screen.blit(img, img.get_rect())
-            pygame.display.flip()
-        pygame.quit()
+    def wait_for_event(self):
+        return pygame.event.wait()
 
-    def getSectionOfFile(self, position, size, modeIdx):
+    def handle_event(self, event):
+        if event.type == pygame.KEYDOWN and event.key in ImageScanner.SCROLL_KEYS:
+            increment = 1
+            mods = pygame.key.get_mods()
+            if mods & pygame.KMOD_LCTRL or mods & pygame.KMOD_CTRL:
+                increment = 10
+                print("CRTL Down")
+            if mods & pygame.KMOD_LSHIFT or mods & pygame.KMOD_SHIFT:
+                increment = increment * -1
+                print("SHIFT Down")
+            if event.key == pygame.K_m:
+                self.mode_idx = (self.mode_idx + increment) % len(PixelFormat.formatTypes)
+                print('Mode Index: ' + str(self.mode_idx))
+                print('Changed mode to ' + PixelFormat.formatTypes[self.mode_idx] + ' with ' + str(
+                    PixelFormat.modeBitsPerPixel[PixelFormat.formatTypes[self.mode_idx]]) + 'bpp')
+            if event.key == pygame.K_b:
+                if mods & pygame.KMOD_SHIFT or mods & pygame.KMOD_LSHIFT:
+                    config.LITTLE_ENDIAN_BITS = not config.LITTLE_ENDIAN_BITS
+                    print('Little Endian on bits: ' + str(config.LITTLE_ENDIAN_BITS))
+                else:
+                    config.LITTLE_ENDIAN_BYTES = not config.LITTLE_ENDIAN_BYTES
+                    print('Little Endian on bytes: ' + str(config.LITTLE_ENDIAN_BYTES))
+            if event.key == pygame.K_BACKQUOTE:
+                config.APPLY_BITWISE_NOT = not config.APPLY_BITWISE_NOT
+                print('Bitwise Not Applied: ' + str(config.APPLY_BITWISE_NOT))
+            if event.key == pygame.K_PAGEDOWN:
+                self.location = self.location + (
+                            PixelFormat.modeBitsPerPixel[PixelFormat.formatTypes[self.mode_idx]] * self.width * self.height * increment)
+            if event.key == pygame.K_RIGHT:
+                self.location = self.location + increment
+            if event.key == pygame.K_DOWN:
+                self.location = self.location + (
+                            PixelFormat.modeBitsPerPixel[PixelFormat.formatTypes[self.mode_idx]] * self.width * increment)
+            if event.key == pygame.K_PAGEUP:
+                self.location = self.location - (
+                            PixelFormat.modeBitsPerPixel[PixelFormat.formatTypes[self.mode_idx]] * self.width * self.height * increment)
+            if event.key == pygame.K_LEFT:
+                self.location = self.location - increment
+            if event.key == pygame.K_UP:
+                self.location = self.location - (
+                            PixelFormat.modeBitsPerPixel[PixelFormat.formatTypes[self.mode_idx]] * self.width * increment)
+            if event.key == pygame.K_w:
+                self.width = self.width + increment
+                self.screen = pygame.display.set_mode((self.width * self.scale, self.height * self.scale))
+                print("New Size: Width: " + str(self.width) + ", Height:" + str(self.height))
+            if event.key == pygame.K_s:
+                self.scale = self.scale + increment
+                if self.scale < 1:
+                    self.scale = 1
+                self.screen = pygame.display.set_mode((self.width * self.scale, self.height * self.scale))
+            if event.key == pygame.K_h:
+                self.height = self.height + increment
+                self.screen = pygame.display.set_mode((self.width * self.scale, self.height * self.scale))
+                print("New Size: Width: " + str(self.width) + ", Height:" + str(self.height))
+            if self.location < 0:
+                self.location = 0
+            lastImg = self.img
+            self.img = self.getSectionOfFile(self.location, (self.width, self.height))
+            if self.img is not None:
+                self.img = pygame.transform.scale(self.img, (self.width * self.scale, self.height * self.scale))
+            else:
+                self.img = lastImg
+        if event.type == pygame.QUIT or (event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE):
+            return False
+        self.screen.fill((0, 0, 0))
+        self.screen.blit(self.img, self.img.get_rect())
+        pygame.display.flip()
+        return True
+
+    def getSectionOfFile(self, position, size):
         width = size[0]
         height = size[1]
-        mode = PixelFormat.formatTypes[modeIdx]
+        mode = PixelFormat.formatTypes[self.mode_idx]
         imageSize = width * height * PixelFormat.modeBitsPerPixel[mode]
         print("Reading next " + str(imageSize) + " bytes starting at location: " + hex(position))
         self.file.seek(position)
