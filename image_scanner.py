@@ -68,15 +68,14 @@ class ImageScanner:
         self.mode_idx = 4
         self.width, self.height = 80, 160
         self.scale = 1
+        self.img = None
+
+    def __enter__(self):
         pygame.init()
         self.screen = pygame.display.set_mode((self.width * self.scale, self.height * self.scale))
-        self.img = self.getSectionOfFile(self.location, (self.width, self.height))
-        self.img = pygame.transform.scale(self.img, (self.width * self.scale, self.height * self.scale))
-        self.screen.fill((0, 0, 0))
-        self.screen.blit(self.img, self.img.get_rect())
-        pygame.display.flip()
+        return self
 
-    def __del__(self):
+    def __exit__(self, exc_type, exc_val, exc_tb):
         pygame.quit()
 
     SCROLL_KEYS = [pygame.K_UP, pygame.K_DOWN, pygame.K_LEFT, pygame.K_RIGHT, pygame.K_PAGEUP, pygame.K_PAGEDOWN,
@@ -142,7 +141,7 @@ class ImageScanner:
             if self.location < 0:
                 self.location = 0
             lastImg = self.img
-            self.img = self.getSectionOfFile(self.location, (self.width, self.height))
+            self.get_section_of_file()
             if self.img is not None:
                 self.img = pygame.transform.scale(self.img, (self.width * self.scale, self.height * self.scale))
             else:
@@ -154,17 +153,19 @@ class ImageScanner:
         pygame.display.flip()
         return True
 
-    def getSectionOfFile(self, position, size):
-        width = size[0]
-        height = size[1]
+    def get_section_of_file(self):
+        position = self.location
+        width = self.width
+        height = self.height
         mode = PixelFormat.formatTypes[self.mode_idx]
         imageSize = width * height * PixelFormat.modeBitsPerPixel[mode]
-        print("Reading next " + str(imageSize) + " bytes starting at location: " + hex(position))
+        print("Reading from " + hex(position) + " to " + hex(position + imageSize))
         self.file.seek(position)
         imageBytes = self.file.read(imageSize)
         if len(imageBytes) < imageSize:
             print("Could not read bytes for full image. Only " + str(len(imageBytes)) + " bytes remained.")
-            return None
+            self.img = None
+            return
         imageBytes = config.reverse_bytes_if_needed(imageBytes, PixelFormat.modeBitsPerPixel[mode])
         imageBytes = config.reverse_bits_if_needed(imageBytes)
         imageBytes = config.not_bits_if_needed(imageBytes)
@@ -173,4 +174,4 @@ class ImageScanner:
             mode = 'RGB'
         print("Creating image from " + str(len(imageBytes)) + " byte array for " + mode + " " + str(width) + "x" + str(
             height))
-        return pygame.image.frombuffer(imageBytes, (width, height), mode)
+        self.img = pygame.image.frombuffer(imageBytes, (width, height), mode)

@@ -2,8 +2,17 @@
 # Press Double Shift to search everywhere for classes, files, tool windows, actions, and settings.
 
 import argparse
-from image_scanner import ImageScanner
 from curses_scanner import CursesScanner
+import traceback
+
+
+def get_scanner(file, use_image):
+    if use_image:
+        from image_scanner import ImageScanner
+        return ImageScanner(file)
+    else:
+        return CursesScanner(file)
+
 
 def main():
     parser = argparse.ArgumentParser(description='Attempts to parse files')
@@ -14,15 +23,17 @@ def main():
     print('Attempting to parse file at: ' + fileName)
     with open(fileName, mode='rb') as file:
         running = True
-        if args.pixels:
-            scanner = ImageScanner(file)
-        else:
-            scanner = CursesScanner(file)
-        while running:
-            event = scanner.wait_for_event()
-            running = scanner.handle_event(event)
-        del scanner
+        with get_scanner(file, args.pixels) as scanner:
+            scanner.get_section_of_file()
+            while running:
+                event = scanner.wait_for_event()
+                running = scanner.handle_event(event)
 
 
 if __name__ == '__main__':
-    main()
+    try:
+        main()
+    except:
+        traceback.print_exc()
+
+
