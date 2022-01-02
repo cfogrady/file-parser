@@ -27,10 +27,11 @@ class CursesScanner:
         self.rows = []
         self.modeIdx = 0
         self.message = 'Initialized'
-        self.width = 16
+        self.width = 8
         self.height = 30
         self.skip_zeros = False
         self.show_hex = False
+        self.offset = 0
 
     def __enter__(self):
         os.environ.setdefault('ESCDELAY', '0')
@@ -70,6 +71,9 @@ class CursesScanner:
             self.location -= self.width*self.height
         elif event == KEY_CTRL_PAGE_UP:
             self.location -= self.width*self.height * 5
+        elif event == ord('o'):
+            self.offset = (self.offset + 1) % DisplayModeOptions[self.modeIdx].value[1]
+            self.message = 'Offset set to ' + str(self.offset) + ' bytes'
         elif event == ord('`'):
             config.APPLY_BITWISE_NOT = not config.APPLY_BITWISE_NOT
         elif event == ord('b'):
@@ -78,6 +82,11 @@ class CursesScanner:
         elif event == ord('z'):
             self.skip_zeros = not self.skip_zeros
             self.message = 'Skip Zeros set to: ' + str(self.skip_zeros)
+        elif event == ord('w'):
+            if self.width == 16:
+                self.width = 8
+            else:
+                self.width = 16
         elif event == ord('h'):
             self.show_hex = not self.show_hex
             self.message = 'Show hex set to: ' + str(self.show_hex)
@@ -136,29 +145,40 @@ class CursesScanner:
 
         byte_buffer = bytearray(word_size)
 
-        dimensions = self.window.getmaxyx()
+        self.window.addstr(0, 0, self.file.name)
 
-        for i in range(0, self.width):
-            self.window.addstr(1, i*13 + 8, "| " + hex(i))
-        for i in range(0, dimensions[1]):
-            self.window.addch(2, i, '-')
-        for i in range(0, len(self.rows)):
-            self.window.addstr(i+3, 0, hex(self.rows[i]))
+        self.print_width_headers()
+        self.print_height_left_side_headers()
         for i in range(0, word_size):
             byte_buffer[i] = file_bytes[i]
         for y in range(0, self.height):
-            for x in range(0, self.width):
-                current_byte = y * self.width + x
-                if x != 0 or y != 0:
-                    for i in range(0, word_size-1):
-                        byte_buffer[i] = byte_buffer[i+1]
-                    if current_byte + word_size - 1 < len(file_bytes):
-                        byte_buffer[word_size-1] = file_bytes[current_byte + word_size-1]
+            for x in range(0, int(self.width/word_size)):
+                current_byte = y * self.width + x*word_size + self.offset
+                for i in range(0, word_size):
+                    if current_byte + i >= len(file_bytes):
+                        byte_buffer[i] = 0
+                    else:
+                        byte_buffer[i] = file_bytes[current_byte + i]
                 if current_byte + word_size - 1 < len(file_bytes):
                     if self.show_hex:
-                        self.window.addstr(y + 3, x * 13 + 8,
+                        self.window.addstr(y + 4, x * 13 + 8,
                                            "| " + hex(int.from_bytes(byte_buffer, byteorder=byte_order, signed=False)))
                     else:
-                        self.window.addstr(y+3, x*13+8, "| " + str(int.from_bytes(byte_buffer, byteorder=byte_order, signed=False)))
-        self.window.addstr(0, 0, self.message)
+                        self.window.addstr(y+4, x*13+8, "| " + str(int.from_bytes(byte_buffer, byteorder=byte_order, signed=False)))
+        self.window.addstr(1, 0, self.message)
         self.window.refresh()
+
+    def print_height_left_side_headers(self):
+        for i in range(0, len(self.rows)):
+            self.window.addstr(i+4, 0, hex(self.rows[i]))
+
+    def print_width_headers(self):
+        dimensions = self.window.getmaxyx()
+        word_size = DisplayModeOptions[self.modeIdx].value[1]
+        for i in range(0, int(self.width / word_size)):
+            header_str = "| " + hex(i * word_size + self.offset)
+            if self.width == 8:
+                header_str = header_str + "/" + hex(i*word_size+8 + self.offset)
+            self.window.addstr(2, i * 13 + 8, header_str)
+        for i in range(0, dimensions[1]):
+            self.window.addch(3, i, '-')
