@@ -11,19 +11,21 @@ KEY_ESCAPE = 27
 KEY_CTRL_PAGE_DOWN = 551
 KEY_CTRL_PAGE_UP = 556
 
+
 class DisplayMode(Enum):
     UINT8 = 1, 1
     UINT16 = 2, 2
     UINT32 = 4, 4
 
+
 DisplayModeOptions = [DisplayMode.UINT8, DisplayMode.UINT16, DisplayMode.UINT32]
 
 
 class CursesScanner:
-    def __init__(self, file):
+    def __init__(self, file, offset, checksum):
         self.file = file
         self.escape_delay = os.environ.get('ESCDELAY')
-        self.location = 0
+        self.location = offset
         self.rows = []
         self.modeIdx = 0
         self.message = 'Initialized'
@@ -32,6 +34,8 @@ class CursesScanner:
         self.skip_zeros = False
         self.show_hex = False
         self.offset = 0
+        self.as_text = False
+        self.checksum = checksum
 
     def __enter__(self):
         os.environ.setdefault('ESCDELAY', '0')
@@ -90,6 +94,9 @@ class CursesScanner:
         elif event == ord('h'):
             self.show_hex = not self.show_hex
             self.message = 'Show hex set to: ' + str(self.show_hex)
+        elif event == ord('t'):
+            self.as_text = not self.as_text
+            self.message = 'Show as text set to: ' + str(self.as_text)
         elif event == ord('m'):
             self.modeIdx = (self.modeIdx + 1) % len(DisplayModeOptions)
             self.message = 'Mode set to ' + DisplayModeOptions[self.modeIdx].name + ' with idx ' + str(self.modeIdx) + ' with ' + str(DisplayModeOptions[self.modeIdx].value[1]) + ' bytes.'
@@ -134,7 +141,7 @@ class CursesScanner:
         self.window.clear()
         # 00 01 02 03 04 05 06 07 08 09 0a 0b 0c 0d 0e 0f
         word_size = DisplayModeOptions[self.modeIdx].value[1]
-        size = self.width*self.height + (word_size-1)
+        size = self.width*self.height
         file_bytes = self.read_size_from_file(size)
         if len(file_bytes) < size:
             self.message = "Reached end of file at " + hex(self.location + len(file_bytes))
@@ -160,12 +167,17 @@ class CursesScanner:
                     else:
                         byte_buffer[i] = file_bytes[current_byte + i]
                 if current_byte + word_size - 1 < len(file_bytes):
+                    current_value = int.from_bytes(byte_buffer, byteorder=byte_order, signed=False)
                     if self.show_hex:
                         self.window.addstr(y + 4, x * 13 + 8,
-                                           "| " + hex(int.from_bytes(byte_buffer, byteorder=byte_order, signed=False)))
+                                           "| " + hex(current_value))
+                    elif self.as_text and current_value != 0:
+                        self.window.addstr(y + 4, x * 13 + 8,
+                                           "| " + chr(current_value))
                     else:
-                        self.window.addstr(y+4, x*13+8, "| " + str(int.from_bytes(byte_buffer, byteorder=byte_order, signed=False)))
+                        self.window.addstr(y+4, x*13+8, "| " + str(current_value))
         self.window.addstr(1, 0, self.message)
+        self.window.addstr(4 + self.height + 1, 0, "Checksum: " + hex(self.checksum))
         self.window.refresh()
 
     def print_height_left_side_headers(self):

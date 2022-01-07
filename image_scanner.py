@@ -62,9 +62,9 @@ class PixelFormat:
 
 
 class ImageScanner:
-    def __init__(self, file):
+    def __init__(self, file, offset):
         self.file = file
-        self.location = 0
+        self.location = offset
         self.mode_idx = 4
         self.width, self.height = 80, 160
         self.scale = 1
