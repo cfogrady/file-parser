@@ -1,6 +1,6 @@
 # file-parser
 
-This is a simple app to help search through binary data. It can show text, hex, characters, shorts, ints, signed, unsigned, big-endian, small-endian, etc.
+This is a simple app to help search through binary data. It can show text, hex, characters, shorts, ints, big-endian, small-endian, etc.
 
 ## Run
 1) pip -r requirements.txt
