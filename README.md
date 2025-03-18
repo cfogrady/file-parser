@@ -12,7 +12,7 @@ This is a simple app to help search through binary data. It can show text, hex, 
 * Up Arrow, Down Arrow, Page Up, and Page Down for navigation.
 * Ctrl Page Up and Ctrl Page Down to skip 5 pages at a time.
 * `o` to display the initial offset.
-* ```` to display show the bitwise NOT values.
+* `` ` `` to display show the bitwise NOT values.
 * `b` to toggle big-endian vs little-endian.
 * `z` to skip rows with no data (0 value bytes)
 * `w` to toggle 8 vs 16 bytes per rows
