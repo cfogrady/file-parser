@@ -38,8 +38,13 @@ class CursesScanner:
         self.checksum = checksum
 
     def __enter__(self):
+        """Allows use in with statement.
+        """
         os.environ.setdefault('ESCDELAY', '0')
         self.window = curses.initscr()
+        self.height = curses.LINES-6
+        if curses.COLS < 109:
+            raise ValueError("Screen must be 109 columns wide to accomodate full table")
         self.window.keypad(True)
         curses.noecho()
         curses.cbreak()
@@ -91,17 +96,25 @@ class CursesScanner:
                 self.width = 8
             else:
                 self.width = 16
+                if curses.COLS < 210:
+                    raise ValueError("Must have at least 210 columns for 16 byte rows.")
         elif event == ord('h'):
             self.show_hex = not self.show_hex
             self.message = 'Show hex set to: ' + str(self.show_hex)
         elif event == ord('t'):
             self.as_text = not self.as_text
+            if self.as_text and DisplayModeOptions[self.modeIdx] == DisplayMode.UINT32:
+                self.modeIdx = (self.modeIdx + 1) % len(DisplayModeOptions)
             self.message = 'Show as text set to: ' + str(self.as_text)
         elif event == ord('m'):
             self.modeIdx = (self.modeIdx + 1) % len(DisplayModeOptions)
+            if self.as_text and DisplayModeOptions[self.modeIdx] == DisplayMode.UINT32:
+                self.modeIdx = (self.modeIdx + 1) % len(DisplayModeOptions)
             self.message = 'Mode set to ' + DisplayModeOptions[self.modeIdx].name + ' with idx ' + str(self.modeIdx) + ' with ' + str(DisplayModeOptions[self.modeIdx].value[1]) + ' bytes.'
         elif event == ord('M') :
             self.modeIdx = (self.modeIdx - 1) % len(DisplayModeOptions)
+            if self.as_text and DisplayModeOptions[self.modeIdx] == DisplayMode.UINT32:
+                self.modeIdx = (self.modeIdx - 1) % len(DisplayModeOptions)
             self.message = 'Mode set to ' + DisplayModeOptions[self.modeIdx].name + ' with idx ' + str(self.modeIdx) + ' with ' + str(DisplayModeOptions[self.modeIdx].value[1]) + ' bytes.'
         elif event == KEY_ESCAPE:
             return False
